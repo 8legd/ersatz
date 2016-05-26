@@ -58,7 +58,15 @@ func (s *ServerApp) Setup() error {
 /////////////////////////////////////////////////////
 
 func (s *ServerApp) Run(exit chan interface{}) {
-	go manners.ListenAndServe(fmt.Sprintf(":%s", s.Port), s.Mux)
+
+	// Add basic request logging
+	handlerWithRequestLogging := func(s *ServerApp) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Printf("[ERSATZ] Request: %#v\n", r)
+			s.Mux.ServeHTTP(w, r)
+		})
+	}
+	go manners.ListenAndServe(fmt.Sprintf(":%s", s.Port), handlerWithRequestLogging(s))
 
 	<-exit
 
@@ -106,6 +114,22 @@ func (s *ServerApp) HandleControlRequest(w http.ResponseWriter, r *http.Request)
 /////////////////////////////////////////////////////
 
 func (s *ServerApp) HandleMockRequest(w http.ResponseWriter, r *http.Request) {
+
+	// Basic request logging
+
+	// Grab the body
+	reqBody, err := ioutil.ReadAll(r.Body)
+	r.Body.Close()
+
+	// Try and parse the JSON request...
+	var reqBodyJSON map[string]interface{}
+	err = json.Unmarshal(reqBody, &reqBodyJSON)
+	if err == nil && reqBodyJSON != nil {
+		fmt.Printf("[ERSATZ] Mock Request Body: %#v\n", reqBodyJSON)
+	} else {
+		//...fallback to logging raw request body
+		fmt.Printf("[ERSATZ] Mock Request Body(Raw): %s\n", string(reqBody))
+	}
 
 	ep, err := s.fetchEndpoint(r.URL.Path[1:], r.Method)
 
